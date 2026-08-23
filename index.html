@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>取数字博弈</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 28px 24px;
+            width: 100%;
+            max-width: 520px;
+            margin-top: 20px;
+            position: relative;
+        }
+        h1 {
+            font-size: 28px;
+            text-align: center;
+            margin-bottom: 24px;
+            font-weight: 700;
+            position: relative;
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
+        }
+        .status-dot {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #ddd;
+            transition: background 0.3s;
+        }
+        .status-dot.win { background: #a5d6a7; }
+        .thinking-popup {
+            position: absolute;
+            top: 64px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            background: white;
+            padding: 10px 22px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 500;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+        .thinking-popup.show { opacity: 1; transform: translateX(-50%) scale(1); }
+        .click-shield {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 15;
+            display: none;
+        }
+        .click-shield.show { display: block; }
+        .setup { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+        .input-row { display: flex; flex-direction: column; gap: 6px; }
+        .input-row label { font-size: 14px; color: #555; }
+        .input-row input, .input-row select {
+            padding: 10px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            background: white;
+            width: 100%;
+        }
+        .input-row input:focus, .input-row select:focus { border-color: #667eea; }
+        .input-row .error { font-size: 12px; color: #ff4757; display: none; }
+        .tip { font-size: 12px; color: #666; margin-top: -4px; }
+        .btn-row { display: flex; gap: 12px; margin-top: 4px; }
+        .btn {
+            flex: 1; padding: 12px; border: none; border-radius: 10px;
+            font-size: 15px; cursor: pointer; transition: all 0.2s;
+            touch-action: manipulation;
+        }
+        .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+
+        /* 游戏规则样式 */
+        .rules {
+            margin-top: 8px;
+            padding: 16px 18px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            border: 1px solid #eef0ff;
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+        }
+        .rules h3 {
+            font-size: 16px;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .rules ul {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 12px;
+        }
+        .rules li {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.8;
+            padding-left: 22px;
+            position: relative;
+            margin-bottom: 4px;
+        }
+        .rules li::before {
+            content: "✨";
+            position: absolute;
+            left: 0;
+            top: 1px;
+            font-size: 12px;
+        }
+        .rules .encourage {
+            text-align: center;
+            font-size: 15px;
+            font-weight: 500;
+            color: #764ba2;
+            margin-top: 8px;
+        }
+
+        .info-bar {
+            display: none;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #f8f9ff;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: #555;
+        }
+        .info-bar.active { display: flex; }
+        .info-bar span { font-weight: 600; color: #667eea; }
+        .grid {
+            display: none;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .grid.active { display: grid; }
+        .num-btn {
+            aspect-ratio: 1;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            touch-action: manipulation;
+        }
+        .num-btn:hover:not(:disabled) { border-color: #667eea; color: #667eea; transform: translateY(-2px); }
+        .num-btn:active:not(:disabled) { transform: scale(0.92); }
+        .num-btn:disabled { background: #f5f5f5; color: #ccc; cursor: not-allowed; border-color: #eee; }
+        .num-btn.computer { background: #ff8a80; border-color: #ff8a80; color: white; }
+        .num-btn.player { background: #80cbc4; border-color: #80cbc4; color: white; }
+        .game-over {
+            display: none;
+            text-align: center;
+            padding: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .game-over.win { color: #2ed573; }
+        .game-over.lose { color: #ff4757; }
+        .restart {
+            position: relative;
+            z-index: 30;
+            display: none;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #f0f0f0;
+            cursor: pointer;
+            font-size: 15px;
+            touch-action: manipulation;
+        }
+        .restart.active { display: block; }
+        @media (max-width: 480px) {
+            body { padding: 10px; align-items: stretch; }
+            .container { padding: 20px 16px; margin-top: 10px; border-radius: 16px; }
+            h1 { font-size: 24px; letter-spacing: 1px; }
+            .grid { gap: 8px; }
+            .num-btn { font-size: 16px; border-radius: 8px; }
+            .thinking-popup { top: 56px; font-size: 13px; padding: 8px 18px; }
+            .rules { padding: 12px 14px; }
+            .rules h3 { font-size: 15px; }
+            .rules li { font-size: 13px; }
+            .rules .encourage { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="clickShield" class="click-shield"></div>
+
+        <h1>取数字博弈<span id="statusDot" class="status-dot"></span></h1>
+
+        <div id="thinkingPopup" class="thinking-popup">电脑正在思考中...</div>
+
+        <div id="setupPanel" class="setup">
+            <div class="input-row">
+                <label>目标总和（最大351）</label>
+                <input type="number" id="targetInput" value="40" min="1" max="351">
+                <div class="error" id="targetErr">请输入1-351之间的数字</div>
+            </div>
+            <div class="input-row">
+                <label>可选数字范围（1~n）</label>
+                <select id="digitSelect"></select>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="startGame(false)">我先手</button>
+                <button class="btn btn-secondary" onclick="startGame(true)">电脑先手</button>
+            </div>
+
+            <div class="rules">
+                <h3>游戏规则</h3>
+                <ul>
+                    <li>双方轮流从可选数字中挑选一个数字，累加到当前总和</li>
+                    <li>率先让总和达到或超过目标值的一方，获得胜利</li>
+                    <li>每个数字只能使用一次，选中后就不能再选啦</li>
+                </ul>
+                <div class="encourage">准备好迎战了吗？来一场酣畅淋漓的数字博弈吧~</div>
+            </div>
+        </div>
+
+        <div id="infoBar" class="info-bar">
+            <div>当前总和：<span id="totalText">0</span></div>
+            <div>距离目标：<span id="remainText">40</span></div>
+        </div>
+
+        <div id="numGrid" class="grid"></div>
+
+        <div id="gameOverText" class="game-over"></div>
+
+        <button id="restartBtn" class="restart" onclick="resetGame()">重新开始</button>
+    </div>
+
+    <script>
+        const MAX_DIGIT = 26;
+        const MAX_TARGET = 26 * 27 / 2; // 351
+
+        let digit = 10, target = 40, total = 0;
+        let playerMask = 0, computerMask = 0;
+        let gameOver = false, gameStarted = false, isComputerTurn = false, isThinking = false;
+        let worker = null;
+
+        const combined = () => playerMask | computerMask;
+
+        // 优化：用 Int8Array 数组替代 Map 做记忆化，下标直接寻址，消除哈希开销
+        const workerCode = `
+            let memo = null, digit = 0;
+            function dfs(all, state) {
+                if (all <= 0) return false;
+                // 数组 0 表示未计算，>0 表示必胜走法，<0 表示必败（绝对值为备选数字）
+                if (memo[state] !== 0) return memo[state] > 0;
+                let first = -1;
+                for (let i = 0; i < digit; i++) {
+                    const cur = 1 << i;
+                    if ((state & cur) === 0) {
+                        if (first < 0) first = i + 1;
+                        if (!dfs(all - (i + 1), state | cur)) { 
+                            memo[state] = i + 1; 
+                            return true; 
+                        }
+                    }
+                }
+                memo[state] = -first;
+                return false;
+            }
+            self.onmessage = function(e) {
+                const d = e.data;
+                if (d.type === 'init') { 
+                    digit = d.digit;
+                    memo = new Int8Array(1 << digit); // 状态总数 2^digit，初始值全为0
+                    return; 
+                }
+                const remain = d.target - d.total;
+                dfs(remain, d.state);
+                const move = Math.abs(memo[d.state]);
+                const newTotal = d.total + move;
+                const newState = d.state | (1 << (move - 1));
+                let ended = newTotal >= d.target, computerWinning = false;
+                if (!ended) computerWinning = !dfs(d.target - newTotal, newState);
+                self.postMessage({ move, newTotal, ended, computerWinning });
+            };
+        `;
+        function createWorker() {
+            if (worker) worker.terminate();
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            worker = new Worker(URL.createObjectURL(blob));
+            worker.onmessage = onWorkerResult;
+            worker.postMessage({ type: 'init', digit });
+        }
+        function killWorker() { if (worker) { worker.terminate(); worker = null; } }
+
+        const sumN = n => n * (n + 1) / 2;
+        function getMinDigit(t) {
+            if (t <= 1) return 1;
+            let n = 1;
+            while (sumN(n) < t) n++;
+            return Math.min(n, MAX_DIGIT);
+        }
+        function updateDigitOptions() {
+            const t = parseInt(document.getElementById('targetInput').value);
+            const sel = document.getElementById('digitSelect');
+            if (isNaN(t) || t < 1 || t > MAX_TARGET) { sel.innerHTML = '<option value="">请先输入合法目标</option>'; return; }
+            const minD = getMinDigit(t);
+            sel.innerHTML = '';
+            for (let i = minD; i <= MAX_DIGIT; i++) {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = `1 ~ ${i} （最大总和 ${sumN(i)}）`;
+                sel.appendChild(o);
+            }
+            sel.value = Math.max(minD, 10);
+        }
+        function validate() {
+            const t = parseInt(document.getElementById('targetInput').value);
+            const d = parseInt(document.getElementById('digitSelect').value);
+            const tErr = document.getElementById('targetErr');
+            let ok = true;
+            if (isNaN(t) || t < 1 || t > MAX_TARGET) { tErr.style.display = 'block'; ok = false; }
+            else tErr.style.display = 'none';
+            if (isNaN(d) || d < 1 || d > MAX_DIGIT) ok = false;
+            return ok;
+        }
+
+        function showThinking() {
+            isThinking = true;
+            document.getElementById('thinkingPopup').classList.add('show');
+            document.getElementById('clickShield').classList.add('show');
+        }
+        function hideThinking() {
+            isThinking = false;
+            document.getElementById('thinkingPopup').classList.remove('show');
+            document.getElementById('clickShield').classList.remove('show');
+        }
+
+        function requestComputerMove() {
+            if (!worker) return;
+            showThinking();
+            worker.postMessage({ target, total, state: combined() });
+        }
+        function onWorkerResult(e) {
+            if (!gameStarted) return;
+            const { move, newTotal, ended, computerWinning } = e.data;
+            total = newTotal;
+            computerMask |= (1 << (move - 1));
+            isComputerTurn = false;
+            updateInfo();
+            renderGrid();
+            hideThinking();
+            if (ended) { endGame(false); return; }
+            document.getElementById('statusDot').classList.toggle('win', computerWinning);
+        }
+
+        function startGame(computerFirst) {
+            if (!validate()) return;
+            digit = parseInt(document.getElementById('digitSelect').value);
+            target = parseInt(document.getElementById('targetInput').value);
+            isComputerTurn = computerFirst;
+            total = 0; playerMask = 0; computerMask = 0;
+            gameOver = false; gameStarted = true;
+            createWorker();
+            document.getElementById('setupPanel').style.display = 'none';
+            document.getElementById('infoBar').classList.add('active');
+            document.getElementById('numGrid').classList.add('active');
+            document.getElementById('restartBtn').classList.add('active');
+            document.getElementById('gameOverText').style.display = 'none';
+            document.getElementById('statusDot').classList.remove('win');
+            updateInfo();
+            renderGrid();
+            if (computerFirst) requestComputerMove();
+        }
+
+        function resetGame() {
+            killWorker();
+            gameStarted = false; gameOver = false;
+            hideThinking();
+            document.getElementById('statusDot').classList.remove('win');
+            document.getElementById('setupPanel').style.display = 'flex';
+            document.getElementById('infoBar').classList.remove('active');
+            document.getElementById('numGrid').classList.remove('active');
+            document.getElementById('restartBtn').classList.remove('active');
+            document.getElementById('gameOverText').style.display = 'none';
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('numGrid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${digit <= 6 ? digit : 6}, 1fr)`;
+            for (let i = 1; i <= digit; i++) {
+                const bit = 1 << (i - 1);
+                const btn = document.createElement('button');
+                btn.className = 'num-btn';
+                btn.textContent = i;
+                btn.onclick = () => playerMove(i);
+                if (playerMask & bit) { btn.disabled = true; btn.classList.add('player'); }
+                else if (computerMask & bit) { btn.disabled = true; btn.classList.add('computer'); }
+                grid.appendChild(btn);
+            }
+        }
+        function updateInfo() {
+            document.getElementById('totalText').textContent = total;
+            document.getElementById('remainText').textContent = target - total;
+        }
+
+        function playerMove(num) {
+            if (gameOver || !gameStarted || isComputerTurn || isThinking) return;
+            const bit = 1 << (num - 1);
+            if (combined() & bit) return;
+            total += num;
+            playerMask |= bit;
+            isComputerTurn = true;
+            updateInfo();
+            renderGrid();
+            if (total >= target) { endGame(true); return; }
+            requestComputerMove();
+        }
+
+        function endGame(playerWin) {
+            gameOver = true;
+            hideThinking();
+            const el = document.getElementById('gameOverText');
+            el.style.display = 'block';
+            if (playerWin) { el.textContent = '🎉 恭喜你赢了！'; el.className = 'game-over win'; }
+            else { el.textContent = '😢 电脑赢了'; el.className = 'game-over lose'; }
+            document.getElementById('statusDot').classList.remove('win');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDigitOptions();
+            document.getElementById('targetInput').addEventListener('input', updateDigitOptions);
+        });
+    </script>
+</body>
+</html>
